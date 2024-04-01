@@ -3,7 +3,7 @@
   <FileVersion>3.0</FileVersion>
   <Workspace>
     <WorkspaceType>Single-project</WorkspaceType>
-    <WorkspacePath>C:\git\STM32\STM_Station\</WorkspacePath>
+    <WorkspacePath>C:\STM\StationModules\STM_Module\</WorkspacePath>
     <underRoot>false</underRoot>
     <TrustZone>0</TrustZone>
     <HAL_Driver>C:\Users\Kerem Çöpoðlu.ATMACA\STM32Cube\Repository\STM32Cube_FW_H5_V1.2.0</HAL_Driver>
