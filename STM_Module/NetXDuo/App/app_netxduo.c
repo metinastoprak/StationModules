@@ -80,7 +80,7 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr)
 
   /* USER CODE END App_NetXDuo_MEM_POOL */
   /* USER CODE BEGIN 0 */
-  printf("Nx_UDP_Echo_Client application started...\n");
+  printf("Nx_UDP_Echo_Client application started..\n");
   /* USER CODE END 0 */
 
   /* Initialize the NetXDuo system. */
