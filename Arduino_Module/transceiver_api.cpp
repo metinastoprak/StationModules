@@ -117,6 +117,7 @@ void Transceiver_Init(void) {
     Serial.println(F("Send IR signals at pin " STR(IR_SEND_PIN)));
 
     digitalWrite(LED_PIN, LOW);
+    digitalWrite(START_PIN, LOW);
     if (tcs.begin()) {
         Serial.println("TCS34725 found..");
     } else {
@@ -161,13 +162,52 @@ void Transceiver_MsgHandler(void) {
             isStartMsgReceived = false;
             isFinishACKReceived = false;
 
-            switch (IrReceiver.decodedIRData.command) {
-            case 0x5B: // READY msg from Station
+            switch (IrReceiver.decodedIRData.command & 0x0F) {
+            case CMD_READY:
                 isReadyMsgReceived = true;
+                if (RoboParams.state == STATE_IDLE || RoboParams.state == STATE_READY)
+                {
+                    digitalWrite(START_PIN, LOW);
+                    if (RoboParams.colorState == COLOR_GREEN)
+                    {
+                        Serial.println("[Receive] READY msg, send ACK");
+                        send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_READY),5);
+                        RoboParams.state = STATE_READY;    
+                    }
+                    else
+                    {
+                        Serial.println("[Receive] READY msg, send NACK");
+                        send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_READY),5);
+                        RoboParams.state = STATE_IDLE;
+                    } 
+                } 
                 break;
 
-            case 0x0E: // START msg from Station
+            case CMD_START:
                 isStartMsgReceived = true;
+                if (RoboParams.state == STATE_READY || RoboParams.state == STATE_START)
+                {
+                    Serial.println("[Receive] START msg, send ACK");
+                    send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_START),5);
+                    RoboParams.state = STATE_START;
+                    // Active PIN High    
+                    digitalWrite(START_PIN, HIGH);
+                }
+                else
+                {
+                    Serial.println("[Receive] START msg, send NACK");
+                    send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_START),5);
+                }
+                break;
+
+            case (CMD_ACK|CMD_FINISH):
+                isFinishACKReceived = true;
+                if (RoboParams.state == STATE_START)
+                {
+                    // race stopped
+                    RoboParams.state = STATE_FINISH;
+                    Serial.println("[Receive] FINISH ACK msg");
+                }
                 break;
 
             default:
@@ -200,49 +240,29 @@ void Transceiver_StateHandler(void) {
 		case STATE_IDLE:
 		{
             displayWaitingMessage();
-            if (isReadyMsgReceived == true) {
-                 RoboParams.state = STATE_READY;
-                 isReadyMsgReceived = false;
-                 bStateTransition = false;
-                 Serial.println("[Receive] READY msg, send ACK");
-
-                send_ir_data(ROBOT_ADDR,0x56,5);
-            }   
 			break;
 		}
 		case STATE_READY:
 		{	
-            if (isReadyMsgReceived == true) {
-                isReadyMsgReceived = false;
-                Serial.println("[Receive] READY msg again, send ACK");
-
-                send_ir_data(ROBOT_ADDR,0x56,5);
-            }
-            else if (isStartMsgReceived == true) {
-                 RoboParams.state = STATE_START;
-                 isStartMsgReceived = false;
-                 bStateTransition = false;
-                 Serial.println("[Receive] START msg, send ACK");
-
-                send_ir_data(ROBOT_ADDR,0x56,5);
-            }
-            
             displayWaitingMessage(); 
 			break;
 		}
 		case STATE_START:
 		{	
-            if (isStartMsgReceived == true) {
-                isStartMsgReceived = false;
-                Serial.println("[Receive] START msg again, send ACK");
-
-                send_ir_data(ROBOT_ADDR,0x56,5);
+            if(RoboParams.colorState == COLOR_RED)
+            {   //send repeatedly until receive ACK command
+                digitalWrite(START_PIN, LOW);
+                send_ir_data(ROBOT_ADDR,CMD_FINISH),5);
             }
+            
+            displayWaitingMessage();
 			break;
 		}
 		case STATE_FINISH:
 		{	
-
+            Serial.println("******** Race COMPLETED ******");
+            Serial.println("Press Power Off-ON to restart");
+            while(1) displayWaitingMessage();
 			break;
 		}
 	}
@@ -265,7 +285,7 @@ void send_ir_data(uint16_t sAddress,uint8_t sCommand,uint8_t sRepeats) {
 
     // Results for the first loop to: Protocol=NEC2 Address=0x102 Command=0x34 Raw-Data=0xCB340102 (32 bits)
     IrSender.sendNEC2(sAddress, sCommand, sRepeats);
-    delay(500);
+    delay(100);
 
     IrReceiver.start();
 }
@@ -310,11 +330,16 @@ void Color_StateHandler(void) {
 */
 static void displayWaitingMessage(void) {
     static char msgCnt = 0;
+    static char dotCnt = 0;
 
-    if (++msgCnt >= 5) {
+    if (++msgCnt >= 10) {
         msgCnt = 0;
         //Serial.print("\b");
         //Serial.print(PrintMsg_CommandWait[msgCnt]);
         Serial.print(".");
+        if (++dotCnt == 10) {
+            dotCnt = 0;
+            Serial.println();
+        }
     }
 }

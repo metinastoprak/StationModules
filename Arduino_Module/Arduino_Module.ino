@@ -30,6 +30,7 @@ void setup() {
     // Just to know which program is running on my Arduino
     Serial.println(F("\r\n RoboRally Module ver: " VERSION_MODULE));
     pinMode(LED_PIN, OUTPUT);
+    pinMode(START_PIN, OUTPUT);
     Transceiver_Init();
 
     prevtime_T1 = millis();

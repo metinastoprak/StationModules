@@ -53,9 +53,14 @@ typedef struct roboData{
 #define     DECIMAL_TOHEX(value) (((value & 0xFF) << 8) | ((~value) & 0xFF))
 
     /* commands ID for communication between STMStation module */
-#define     CMD_READY   0xEC
-#define     CMD_START   0xED
-#define     CMD_FINISH  0xEE
+#define     CMD_READY   0x0B
+#define     CMD_START   0x0C
+#define     CMD_FINISH  0x0D
+
+#define     CMD_ACK     0x10
+#define     CMD_NACK    0xF0
+
+
 
 #define     CMD_ADR_ALL 0x6229  //0xFF00      // received command will be processed by all robovehicle ID
 
@@ -65,6 +70,7 @@ typedef struct roboData{
 #define     ROBOT_ADDR  DECIMAL_TOHEX(ROBOT_ID)
 
 #define     LED_PIN     7
+#define     START_PIN   4
 
 
 #define     eeADDR_DATA 0x10        // data stored memory at 16
