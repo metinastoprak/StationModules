@@ -50,19 +50,21 @@ typedef struct roboData{
 /*******************************************************************************
 * EXPORTED DEFS
 ********************************************************************************/
+#define     DECIMAL_TOHEX(value) (((value & 0xFF) << 8) | ((~value) & 0xFF))
+
     /* commands ID for communication between STMStation module */
 #define     CMD_READY   0xEC
 #define     CMD_START   0xED
 #define     CMD_FINISH  0xEE
 
-#define     CMD_ADR_ALL 0xFF        // received command will be processed by all robovehicle ID
+#define     CMD_ADR_ALL 0x6229  //0xFF00      // received command will be processed by all robovehicle ID
 
 
 #define     ROBOT_NAME  "RoboRally"
 #define     ROBOT_ID    16
+#define     ROBOT_ADDR  DECIMAL_TOHEX(ROBOT_ID)
 
-#define     COLOR_RED   0x10
-#define     COLOR_RED   0x11
+#define     LED_PIN     7
 
 
 #define     eeADDR_DATA 0x10        // data stored memory at 16
@@ -78,7 +80,7 @@ extern _roboData RoboParams;
 INTERFACE void Transceiver_Init(void);
 INTERFACE void Transceiver_StateHandler(void);
 INTERFACE void Color_StateHandler(void);
-
+INTERFACE void Transceiver_MsgHandler(void);
 
 
 
