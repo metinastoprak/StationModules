@@ -25,6 +25,7 @@
 #include "nxd_dhcp_client.h"
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -346,7 +347,7 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
     Error_Handler();
   }
 
-  while(count++ < MAX_PACKET_COUNT)
+  while(count < MAX_PACKET_COUNT)
   {
     TX_MEMSET(data_buffer, '\0', sizeof(data_buffer));
 
@@ -376,14 +377,64 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       ULONG source_ip_address;
       UINT source_port;
 
+      printf("here 1");
+
       /* get the server IP address and  port */
       nx_udp_source_extract(server_packet, &source_ip_address, &source_port);
+
+      printf("here 2");
 
       /* retrieve the data sent by the server */
       nx_packet_data_retrieve(server_packet, data_buffer, &bytes_read);
 
+      printf("data_buffer: %s\n", data_buffer);
+
+
+      if (strcmp((char *)data_buffer, "ready") == 0) {
+
+    	  ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
+
+		  if (ret != NX_SUCCESS)
+		  {
+			Error_Handler();
+		  }
+
+    	  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
+		  ret = nx_packet_data_append(data_packet, (VOID *)"55,66,77,88", sizeof("55,66,77,88"), &NxAppPool, TX_WAIT_FOREVER);
+
+		  if (ret != NX_SUCCESS)
+		  {
+			Error_Handler();
+		  }
+
+		  /* send the message */
+		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+
+
+      }else if(strcmp((char *)data_buffer, "start") == 0){
+
+    	  ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
+
+		  if (ret != NX_SUCCESS)
+		  {
+			Error_Handler();
+		  }
+
+    	  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
+		  ret = nx_packet_data_append(data_packet, (VOID *)"55,66,77,88", sizeof("55,66,77,88"), &NxAppPool, TX_WAIT_FOREVER);
+
+		  if (ret != NX_SUCCESS)
+		  {
+			Error_Handler();
+		  }
+
+		  /* send the message */
+		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+
+      }
+
       /* print the received data */
-     PRINT_DATA(source_ip_address, source_port, data_buffer);
+      PRINT_DATA(source_ip_address, source_port, data_buffer);
 
       /* release the server packet */
       nx_packet_release(server_packet);
@@ -394,7 +445,7 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
     else
     {
       /* connection lost with the server, exit the loop */
-      break;
+      //break;
     }
     /* Add a short timeout to let the echool tool correctly
     process the just sent packet before sending a new one */
