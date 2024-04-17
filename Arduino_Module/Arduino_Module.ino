@@ -15,7 +15,7 @@
 
 unsigned long prevtime_T1;        // for IR msg handling
 unsigned long prevtime_T2;        // for colorstate handling
-
+unsigned long prevtime_T3;        // for IR message handling
 /**
 * @brief Function Name Arduino Setup Functions
 */
@@ -29,11 +29,13 @@ void setup() {
 
     // Just to know which program is running on my Arduino
     Serial.println(F("\r\n RoboRally Module ver: " VERSION_MODULE));
-
+    pinMode(LED_PIN, OUTPUT);
+    pinMode(START_PIN, OUTPUT);
     Transceiver_Init();
 
     prevtime_T1 = millis();
     prevtime_T2 = millis();
+    prevtime_T3 = millis();
     
 }
 
@@ -45,7 +47,7 @@ void loop() {
 
     // put your main code here, to run repeatedly:
     currentTime = millis();
-    if (currentTime - prevtime_T1 > 500)
+    if (currentTime - prevtime_T1 > 100)
     {
        Transceiver_StateHandler();
        prevtime_T1 = currentTime; 
@@ -54,7 +56,11 @@ void loop() {
     {
       /* check color state */
       Color_StateHandler();
-       prevtime_T2 = currentTime; 
+      prevtime_T2 = currentTime; 
     }
-    
+    else if (currentTime - prevtime_T3 > 50)
+    {
+      Transceiver_MsgHandler();
+      prevtime_T3 = currentTime;
+    }
 }
