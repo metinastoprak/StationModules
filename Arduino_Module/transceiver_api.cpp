@@ -153,7 +153,8 @@ void Transceiver_MsgHandler(void) {
         /*
          * Finally, check the received data and perform actions according to the received command
          */
-        if (IrReceiver.decodedIRData.address == ROBOT_ADDR || IrReceiver.decodedIRData.address == CMD_ADR_ALL ) {
+        Serial.println(IrReceiver.decodedIRData.address,HEX);
+        if (IrReceiver.decodedIRData.address == ROBOT_ID || IrReceiver.decodedIRData.address == CMD_ADR_ALL ) {
 
             Serial.print("Robot ID matched--> 0x");Serial.println(IrReceiver.decodedIRData.address,HEX);
 
@@ -234,6 +235,18 @@ void Transceiver_StateHandler(void) {
         Serial.print(StateMsg_Table[RoboParams.state]);Serial.print(",  ");
         Serial.println(Colors_Table[RoboParams.colorState]);
         bStateTransition = true;
+#if 0
+        //dummy test code here,comment later
+        if(RoboParams.colorState == COLOR_GREEN) {
+            digitalWrite(START_PIN, HIGH);
+            Serial.println("Motor Start pin HIGH");
+        }
+        else if(RoboParams.colorState == COLOR_RED) {
+            digitalWrite(START_PIN, LOW);
+            Serial.println("Motor Start pin LOW");
+        }
+#endif 
+       
     }
  	switch(RoboParams.state)
 	{
@@ -252,7 +265,7 @@ void Transceiver_StateHandler(void) {
             if(RoboParams.colorState == COLOR_RED)
             {   //send repeatedly until receive ACK command
                 digitalWrite(START_PIN, LOW);
-                send_ir_data(ROBOT_ADDR,CMD_FINISH),5);
+                send_ir_data(ROBOT_ADDR,CMD_FINISH,5);
             }
             
             displayWaitingMessage();
@@ -309,9 +322,9 @@ void Color_StateHandler(void) {
     Serial.print("BLUE: "); Serial.println(b);
 */
     // Renk algılama
-    if (r > 0.5 && g < 0.5 && b < 0.5) {
+    if (r > 0.41 && g < 0.5 && b < 0.5) {
         _colorState = COLOR_RED;
-    } else if (g > 0.5 && r < 0.5 && b < 0.5) {
+    } else if (g > 0.41 && r < 0.5 && b < 0.5) {
         _colorState = COLOR_GREEN;
     }
 

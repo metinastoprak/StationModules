@@ -62,7 +62,7 @@ typedef struct roboData{
 
 
 
-#define     CMD_ADR_ALL 0x6229  //0xFF00      // received command will be processed by all robovehicle ID
+#define     CMD_ADR_ALL 0xFF        // received command will be processed by all robovehicle ID
 
 
 #define     ROBOT_NAME  "RoboRally"
