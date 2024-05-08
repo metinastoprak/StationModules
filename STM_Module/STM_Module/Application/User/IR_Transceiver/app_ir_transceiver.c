@@ -251,6 +251,17 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             } 
         }
         else if (NEC_rx.state == NEC_RX_STATE_DONE) {
+            // if finish command received?    
+            if (NEC_rx.command == CMD_FINISH){
+                NEC_RX_StopCapture(&NEC_rx);
+                    
+                NEC_tx.address = (NEC_rx.address & 0xFF);    //get received address
+                NEC_tx.command = CMD_ACK|CMD_FINISH;         //NEC_rx.command;
+                NEC_tx.timeout = 0;
+                printf("\r[NEC TX] send FINISH-ACK for id:%02d\n",NEC_tx.address);
+                NEC_TX_XmitHandler(&NEC_tx);
+            }
+
             HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
             if (++NEC_rx.timeout >= (TICK_1_SEC/10))
             {
@@ -393,6 +404,7 @@ void NEC_RX_DecodeHandler(void) {
     //NEC_Rx_Read(&nec);
     printf("\r[NEC RX] frame captured Address:0x%X , Command:0x%X\n ",NEC_rx.address,NEC_rx.command);
     ack = NEC_rx.command>>4;
+    NEC_rx.command &= 0x0F; 
     if (NEC_rx.command == CMD_READY || NEC_rx.command == CMD_START )
     {
         if (ack != 0x0F && ack != 0x01)
