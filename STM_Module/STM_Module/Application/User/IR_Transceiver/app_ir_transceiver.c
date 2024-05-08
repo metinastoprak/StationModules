@@ -239,8 +239,9 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
 
 
         if (NEC_rx.state == NEC_RX_STATE_IDLE &&\
-            (msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE)) {
+            (msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE || NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE)) {
             printf("\r[NEC RX] Allstates at IDLE state...\n ");
+            NEC_tx.state = NEC_TX_STATE_IDLE;
             NEC_RX_StartCapture(&NEC_rx);
         }
         else if (NEC_rx.state == NEC_RX_HEAD_OK) {
