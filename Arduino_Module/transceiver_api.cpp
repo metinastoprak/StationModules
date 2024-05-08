@@ -26,7 +26,7 @@
 /*******************************************************************************
 * LOCAL DEFINES
 ********************************************************************************/
-
+#define     TRANSMIT_REP_COUNT  5
 
 /*******************************************************************************
 * LOCAL TYPEDEFS 
@@ -52,6 +52,8 @@ static bool isStartMsgReceived = 0;
 static bool isFinishACKReceived = 0;
 
 static char timerACKmsg = 0;
+static char timerRX_timeout = 0;
+
 
 
 const char * States_Table[STATE_MAX] = {"STATE_IDLE","STATE_READY","STATE_START","STATE_FINISH"};
@@ -139,33 +141,33 @@ void Transceiver_MsgHandler(void) {
         if (IrReceiver.decodedIRData.protocol == UNKNOWN) {
             Serial.println(F("Received noise or an unknown protocol"));
             // We have an unknown protocol here, print extended info
-            IrReceiver.printIRResultRawFormatted(&Serial, true);
+            //IrReceiver.printIRResultRawFormatted(&Serial, true);
             IrReceiver.resume(); // Do it here, to preserve raw data for printing with printIRResultRawFormatted()
-
+            return;
         } 
         else {  // matched protocol
             IrReceiver.printIRResultShort(&Serial);
-            //IrReceiver.printIRSendUsage(&Serial);
             IrReceiver.resume(); // Early enable receiving of the next IR frame
 
         }
         Serial.println();
-        
 
         /*
          * Finally, check the received data and perform actions according to the received command
          */
-        Serial.println(IrReceiver.decodedIRData.address,HEX);
+       
         if (IrReceiver.decodedIRData.address == ROBOT_ID || IrReceiver.decodedIRData.address == CMD_ADR_ALL ) {
 
             Serial.print("Robot ID matched--> 0x");Serial.println(IrReceiver.decodedIRData.address,HEX);
+            // wait until IR repeat ended
+            Color_StateHandler();
 
             bStateTransition = false;    // print current State 
             isReadyMsgReceived = false;
             isStartMsgReceived = false;
             isFinishACKReceived = false;
 
-            switch (IrReceiver.decodedIRData.command & 0x0F) {
+            switch (IrReceiver.decodedIRData.command) {
             case CMD_READY:
                 isReadyMsgReceived = true;
                 if (RoboParams.state == STATE_IDLE || RoboParams.state == STATE_READY)
@@ -174,13 +176,13 @@ void Transceiver_MsgHandler(void) {
                     if (RoboParams.colorState == COLOR_GREEN)
                     {
                         Serial.println("[Receive] READY msg, send ACK");
-                        send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_READY),5);
+                        send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_READY),TRANSMIT_REP_COUNT);
                         RoboParams.state = STATE_READY;    
                     }
                     else
                     {
                         Serial.println("[Receive] READY msg, send NACK");
-                        send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_READY),5);
+                        send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_READY),TRANSMIT_REP_COUNT);
                         RoboParams.state = STATE_IDLE;
                     } 
                 } 
@@ -191,7 +193,7 @@ void Transceiver_MsgHandler(void) {
                 if (RoboParams.state == STATE_READY || RoboParams.state == STATE_START)
                 {
                     Serial.println("[Receive] START msg, send ACK");
-                    send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_START),5);
+                    send_ir_data(ROBOT_ADDR,(CMD_ACK|CMD_START),TRANSMIT_REP_COUNT);
                     RoboParams.state = STATE_START;
                     // Active PIN High    
                     digitalWrite(START_PIN, HIGH);
@@ -199,7 +201,8 @@ void Transceiver_MsgHandler(void) {
                 else
                 {
                     Serial.println("[Receive] START msg, send NACK");
-                    send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_START),5);
+                    send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_START),TRANSMIT_REP_COUNT);
+                    //RoboParams.state = STATE_FINISH_GET_ACK;
                 }
                 break;
 
@@ -221,6 +224,21 @@ void Transceiver_MsgHandler(void) {
         else
         {
             IrReceiver.resume(); // Early enable receiving of the next IR frame
+/*            timerRX_timeout = 0;
+            do {
+                if (IrReceiver.decode() == false)
+                {
+                   if (++timerRX_timeout >= 50)
+                    break; 
+                }
+                else {
+                    timerRX_timeout = 0;
+                    IrReceiver.resume();
+                }
+                delay(10);
+            }while(++timerRX_timeout < 50); 
+            Serial.println("RX signal timeout");
+*/
         }
         
 
@@ -270,7 +288,7 @@ void Transceiver_StateHandler(void) {
             if(RoboParams.colorState == COLOR_RED)
             {   //send repeatedly until receive ACK command
                 digitalWrite(START_PIN, LOW);
-                send_ir_data(ROBOT_ADDR,CMD_FINISH,3);
+                send_ir_data(ROBOT_ADDR,CMD_FINISH,TRANSMIT_REP_COUNT);
                 RoboParams.state = STATE_FINISH_GET_ACK;
             }
             else
@@ -284,7 +302,8 @@ void Transceiver_StateHandler(void) {
             
             if(++timerACKmsg >= 5){
                 timerACKmsg = 0;
-                send_ir_data(ROBOT_ADDR,CMD_FINISH,3);      // resend FINISH command to Portal
+                send_ir_data(ROBOT_ADDR,CMD_FINISH,TRANSMIT_REP_COUNT);      // resend FINISH command to Portal
+                //RoboParams.state = STATE_IDLE;
             }    
             break;
         }
@@ -292,7 +311,7 @@ void Transceiver_StateHandler(void) {
 		{	
             Serial.println("******** Race COMPLETED ******");
             Serial.println("Press Power Off-ON to restart");
-            while(1) displayWaitingMessage();
+            while(1);
 			break;
 		}
 	}
@@ -305,7 +324,21 @@ void Transceiver_StateHandler(void) {
  */
 void send_ir_data(uint16_t sAddress,uint8_t sCommand,uint8_t sRepeats) {
 
-    IrReceiver.stop();delay(500);
+    // wait IR BUS idle before send
+    timerRX_timeout = 0;
+    do {
+        if (IrReceiver.decode())
+        {
+            timerRX_timeout = 0;
+            IrReceiver.resume();
+        }
+        else {
+        }
+        delay(10);
+    }while(++timerRX_timeout < 50); 
+    Serial.println("RX signal timeout");
+
+    IrReceiver.stop();delay(50);
 
     Serial.print(F("[Transmit] addr: 0x"));
     Serial.print(sAddress, HEX);
@@ -315,7 +348,7 @@ void send_ir_data(uint16_t sAddress,uint8_t sCommand,uint8_t sRepeats) {
 
     // Results for the first loop to: Protocol=NEC2 Address=0x102 Command=0x34 Raw-Data=0xCB340102 (32 bits)
     IrSender.sendNEC2(sAddress, sCommand, sRepeats);
-    delay(100);
+    delay(50);
 
     IrReceiver.start();
 }

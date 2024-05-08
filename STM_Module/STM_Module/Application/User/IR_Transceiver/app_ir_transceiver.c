@@ -207,6 +207,7 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             {	
                 if (NEC_tx.state == NEC_TX_STATE_IDLE)
                 {
+                    
                     NEC_RX_StopCapture(&NEC_rx);        // disable receive
                     if (msgTransceiver.cmd == CMD_READY) {
                         NEC_tx.address = CMD_ADR_ALL;    //NEC_rx.address>>8;
@@ -220,6 +221,14 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                         NEC_tx.timeout = 0;
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
+                    else if (msgTransceiver.cmd  == CMD_FINISH){
+                        NEC_tx.address = (NEC_rx.address & 0xFF);    //get received address
+                        NEC_tx.command = CMD_ACK|CMD_FINISH;         //NEC_rx.command;
+                        NEC_tx.timeout = 0;
+                        printf("\r[NEC TX] send FINISH-ACK for id:%02d\n",NEC_tx.address);
+                        NEC_TX_XmitHandler(&NEC_tx);
+                    }
+
                 }
                 else if (NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE) {
                     printf("\r[NEC TX] transmit done ID:0x%X , Cmd:0x%X\n ",NEC_tx.address,NEC_tx.command);
@@ -237,7 +246,44 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
         }
 
 
+        switch(NEC_rx.state)
+        {
+            case NEC_RX_HEAD_OK:
+            {	// wait for 1sec to capture signal
+                if (++NEC_rx.timeout >= (TICK_1_SEC/10))
+                {
+                    NEC_rx.Rx_ErrorCallback();                         
+                } 
+                break;
+            }
+            case NEC_RX_STATE_DONE:
+            {	// if finish command received?
+                
+                if (++NEC_rx.timeout >= (TICK_1_SEC/10))
+                {
+                    if (NEC_rx.command == CMD_FINISH){
+                        msgTransceiver.state = MSG_STATE_READY;         // send ACK command for FINISH
+                        msgTransceiver.cmd = CMD_FINISH;
+                    }
+                    printf("\r[NEC RX] timeout, bus IDLE ...\n ");
+                    NEC_RX_StopCapture(&NEC_rx);
+                }
+                break;
+            }
+            default: 
+            {
+                if ((msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE || NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE)) {
+                    NEC_tx.state = NEC_TX_STATE_IDLE;
 
+                    if (NEC_rx.state != NEC_RX_STATE_INIT) {
+                        printf("\r[NEC RX] Allstates at IDLE state...\n ");
+                        NEC_RX_StartCapture(&NEC_rx);
+                    }
+                }
+                break;
+            }
+        }
+#if 0
         if ((msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE || NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE)) {
             printf("\r[NEC RX] Allstates at IDLE state...\n ");
             NEC_tx.state = NEC_TX_STATE_IDLE;
@@ -275,44 +321,13 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                     NEC_RX_StopCapture(&NEC_rx);
                 }
             } 
-        }    
+        }
+#endif            
 
         
 
-#if 0
-        if (NEC_tx.state == NEC_TX_STATE_INIT)
-        {
-            NEC_tx.address = CMD_ADR_ALL;    //NEC_rx.address>>8;
-            NEC_tx.command = CMD_READY;      //NEC_rx.command;
-            NEC_tx.stat = 1;
-            NEC_tx.timeout = 0;
-            NEC_TX_XmitHandler(&NEC_tx);
-        }
-        else if (NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE) {
-                printf("\r[NEC TX] transmit done Address:0x%X , Command:0x%X\n ",NEC_tx.address,NEC_tx.command);
-                if(++NEC_tx.timeout >= 20) {
-                NEC_tx.state = NEC_TX_STATE_INIT;
-                }
-        }
-
-    
-        if (NEC_rx.state == NEC_RX_HEAD_OK) {
-            // wait for 1sec to capture signal    
-            if (++NEC_rx.timeout >= 10)
-            {
-                NEC_rx.Rx_ErrorCallback();                         
-            } 
-        }
-        else if (NEC_rx.state == NEC_RX_STATE_DONE) {
-            HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
-            if (++NEC_rx.timeout >= 10)
-            {
-                NEC_RX_StartCapture(&NEC_rx);                         
-            } 
-        }    
-#endif
         
-    }
+    } //while(1)
 }
   /**
   * @brief  Transceiver_CheckQueueMessage
@@ -375,9 +390,9 @@ VOID Portal_thread_entry(ULONG initial_param) {
         }   
 
         // check is there any msg avaliable to be sent?
-        if (++timerMSG >=50) {
-            //after 1sec send ready msg to TRANSCEIVER thread
-            timerMSG = 0;
+        timerMSG++;
+        if (timerMSG ==50) {
+            //after 5sec send ready msg to TRANSCEIVER thread
             snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", CMD_NULL, CMD_READY,CMD_NULL);       // addr:NULL --> ALL address  cmd:READY stat:NULL
             //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
 
@@ -385,8 +400,19 @@ VOID Portal_thread_entry(ULONG initial_param) {
             if (status == TX_SUCCESS) {
                 printf("\r[Portal-->Transceiver] message send: %s\n", message);
             } 
-
         }
+        else if (timerMSG == 100) {
+            timerMSG = 0;
+            //after 5sec send ready msg to TRANSCEIVER thread
+            snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
+
+            status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
+            if (status == TX_SUCCESS) {
+                printf("\r[Portal-->Transceiver] message send: %s\n", message);
+            } 
+        }
+
+
 
         tx_thread_sleep(10);
 	}
