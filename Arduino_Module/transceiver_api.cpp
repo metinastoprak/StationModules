@@ -246,7 +246,7 @@ void Transceiver_StateHandler(void) {
             Serial.println("Motor Start pin LOW");
         }
 #endif 
-       
+
     }
  	switch(RoboParams.state)
 	{
@@ -267,6 +267,8 @@ void Transceiver_StateHandler(void) {
                 digitalWrite(START_PIN, LOW);
                 send_ir_data(ROBOT_ADDR,CMD_FINISH,5);
             }
+            else
+                digitalWrite(START_PIN, HIGH);      // pistten çıkıp KIRMIZI görürse,tekrar farklı renk durumunda HIGH
             
             displayWaitingMessage();
 			break;
