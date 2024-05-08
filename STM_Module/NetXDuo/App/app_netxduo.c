@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "main.h"
 #include "string.h"
+#include "app_ir_transceiver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -347,7 +348,7 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
     Error_Handler();
   }
 
-  while(count < MAX_PACKET_COUNT)
+  while(1)
   {
     TX_MEMSET(data_buffer, '\0', sizeof(data_buffer));
 
@@ -377,30 +378,66 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       ULONG source_ip_address;
       UINT source_port;
 
-      printf("here 1");
-
       /* get the server IP address and  port */
       nx_udp_source_extract(server_packet, &source_ip_address, &source_port);
-
-      printf("here 2");
 
       /* retrieve the data sent by the server */
       nx_packet_data_retrieve(server_packet, data_buffer, &bytes_read);
 
-      printf("data_buffer: %s\n", data_buffer);
+      printf("[udp] data_buffer: %s\n", data_buffer);
+
+      CHAR message[20+2];
+
+      CHAR *id_pos;
+	 CHAR *cmd_pos;
+	 CHAR *stat_pos;
+	 UINT status;
+	 unsigned char id, cmd, stat;
+
+	 // get "id:"  "cmd:" "stat:" sub msg
+	 id_pos = strstr(data_buffer, "id:");
+	 cmd_pos = strstr(data_buffer, "cmd:");
+	 stat_pos = strstr(data_buffer, "stat:");
 
 
-      if (strcmp((char *)data_buffer, "ready") == 0) {
+	 // get values & convert to CHAR
+	 if (id_pos != NULL && cmd_pos != NULL && stat_pos != NULL) {
+		 id = (unsigned char)atoi(id_pos + 3);
+		 cmd = (unsigned char)atoi(cmd_pos + 4);
+		 stat = (unsigned char)atoi(stat_pos + 5);
 
-    	  ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
+		 printf("[UDP->PORTAL] msg-> id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
+	 }
+	 else {
+		 printf("[UDP->PORTAL] message ERROR id: cmd: stat:   received msg INVALID!\n");
+	 }
+
+
+      //buffer ı queue e ekle
+      snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", id, cmd, stat);       // addr:NULL --> ALL address  cmd:READY stat:NULL
+                  //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
+
+	  status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
+	  if (status == TX_SUCCESS) {
+		  printf("\r[Portal-->Transceiver] message send: %s\n", message);
+	  }
+
+	  // TX-RX thread dinleme //ardunio dinleme
+	  status = tx_queue_receive(&Portal_queue_ptr, &message, TX_NO_WAIT);
+	  if (status == TX_SUCCESS) {
+		  // Message received , parse it
+		  printf("[Portal Queue] message received: %s\n", message);
+
+		  //send message to portal
+		  ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
 
 		  if (ret != NX_SUCCESS)
 		  {
 			Error_Handler();
 		  }
 
-    	  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
-		  ret = nx_packet_data_append(data_packet, (VOID *)"55,66,77,88", sizeof("55,66,77,88"), &NxAppPool, TX_WAIT_FOREVER);
+		  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
+		  ret = nx_packet_data_append(data_packet, (VOID *)message, sizeof(message), &NxAppPool, TX_WAIT_FOREVER);
 
 		  if (ret != NX_SUCCESS)
 		  {
@@ -409,32 +446,11 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
 
 		  /* send the message */
 		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+	  }
 
-
-      }else if(strcmp((char *)data_buffer, "start") == 0){
-
-    	  ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
-
-		  if (ret != NX_SUCCESS)
-		  {
-			Error_Handler();
-		  }
-
-    	  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
-		  ret = nx_packet_data_append(data_packet, (VOID *)"55,66,77,88", sizeof("55,66,77,88"), &NxAppPool, TX_WAIT_FOREVER);
-
-		  if (ret != NX_SUCCESS)
-		  {
-			Error_Handler();
-		  }
-
-		  /* send the message */
-		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
-
-      }
 
       /* print the received data */
-      PRINT_DATA(source_ip_address, source_port, data_buffer);
+      //PRINT_DATA(source_ip_address, source_port, data_buffer);
 
       /* release the server packet */
       nx_packet_release(server_packet);
@@ -455,16 +471,6 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
   nx_udp_socket_unbind(&UDPSocket);
   nx_udp_socket_delete(&UDPSocket);
 
-  if (count == MAX_PACKET_COUNT + 1)
-  {
-    printf("\n-------------------------------------\n\tSUCCESS : %u / %u packets sent\n-------------------------------------\n", count - 1, MAX_PACKET_COUNT);
-    Success_Handler();
-  }
-  else
-  {
-    printf("\n-------------------------------------\n\tFAIL : %u / %u packets sent\n-------------------------------------\n", count - 1, MAX_PACKET_COUNT);
-    Error_Handler();
-  }
 }
 
 /**
