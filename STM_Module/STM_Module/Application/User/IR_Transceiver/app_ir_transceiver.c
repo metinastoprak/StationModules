@@ -237,8 +237,13 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
         }
 
 
-        
-        if (NEC_rx.state == NEC_RX_HEAD_OK) {
+
+        if (NEC_rx.state == NEC_RX_STATE_IDLE &&\
+            (msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE)) {
+            printf("\r[NEC RX] Allstates at IDLE state...\n ");
+            NEC_RX_StartCapture(&NEC_rx);
+        }
+        else if (NEC_rx.state == NEC_RX_HEAD_OK) {
             // wait for 1sec to capture signal    
             if (++NEC_rx.timeout >= (TICK_1_SEC/10))
             {
@@ -330,10 +335,10 @@ void Transceiver_CheckQueueMessage(void){
             msgTransceiver.state = MSG_STATE_READY;
             msgTransceiver.id = id;
             msgTransceiver.cmd = cmd;
-            printf("[Transceiver RecieveMsg] id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
+            printf("\r[Transceiver RecieveMsg] id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
         } 
         else {
-            printf("[Transceiver RecieveMsg] ERROR id: cmd: stat:   received msg INVALID!\n");
+            printf("\r[Transceiver RecieveMsg] ERROR id: cmd: stat:   received msg INVALID!\n");
         }
     }   
 }
@@ -388,9 +393,19 @@ void NEC_RX_DecodeHandler(void) {
     //NEC_Rx_Read(&nec);
     printf("\r[NEC RX] frame captured Address:0x%X , Command:0x%X\n ",NEC_rx.address,NEC_rx.command);
     ack = NEC_rx.command>>4;
-    if (ack != 0x0F && ack != 0x01)
+    if (NEC_rx.command == CMD_READY || NEC_rx.command == CMD_START )
     {
-       printf("\r[NEC RX] invalid ACK :%02d\n",ack);return;
+        if (ack != 0x0F && ack != 0x01)
+        {
+            printf("\r[NEC RX] invalid ACK :%02d\n",ack);return;
+        }
+    }
+    else if (NEC_rx.command == CMD_FINISH){
+        printf("[NEC RX] FINISH command received ");
+    }
+    else
+    {
+        printf("[NEC RX] INVALID command received "); return;
     }
     snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", (NEC_rx.address & 0xFF), NEC_rx.command & 0x0f,ack);
     //sprintf(message, "id:%02d cmd:%02d stat:%02d", NEC_rx.address>>8, NEC_rx.command>>4,NEC_rx.command & 0x01);
