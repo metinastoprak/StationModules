@@ -168,8 +168,8 @@ void Transceiver_Init(void) {
                          TRANSCEIVER_PRIORITY, TRANSCEIVER_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
 
-    tx_thread_create(&portal_ptr, "Portal Thread", Portal_thread_entry, 0, thread_portal, THREAD_STACK_SIZE,
-                         PORTAL_PRIORITY, PORTAL_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
+    //tx_thread_create(&portal_ptr, "Portal Thread", Portal_thread_entry, 0, thread_portal, THREAD_STACK_SIZE,
+    //                     PORTAL_PRIORITY, PORTAL_PRIORITY, TX_NO_TIME_SLICE, TX_AUTO_START);
 
    
     tx_queue_create(&Transceiver_queue_ptr, "TransceiverQueue", MESSAGE_SIZE ,Transceiver_queue_stack,MESSAGE_SIZE*QUEUE_SIZE);
@@ -249,6 +249,7 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
             if (++NEC_rx.timeout >= (TICK_1_SEC/10))
             {
+                printf("\r[NEC RX] bus IDLE ...\n ");
                 if (msgTransceiver.state == MSG_STATE_IDLE)
                 {
                     NEC_RX_StartCapture(&NEC_rx);
