@@ -249,8 +249,8 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
             if (++NEC_rx.timeout >= (TICK_1_SEC/10))
             {
-                printf("\r[NEC RX] bus IDLE ...\n ");
-                if (msgTransceiver.state == MSG_STATE_IDLE)
+                printf("\r[NEC RX] timeout, bus IDLE ...\n ");
+                if ((msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE))
                 {
                     NEC_RX_StartCapture(&NEC_rx);
                 }
