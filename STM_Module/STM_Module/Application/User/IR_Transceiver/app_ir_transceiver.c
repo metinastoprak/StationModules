@@ -214,9 +214,9 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                         NEC_tx.timeout = 0;
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
-                    else if(msgTransceiver.cmd == CMD_READY){
-                        NEC_tx.address = msgTransceiver.id;    //NEC_rx.address>>8;
-                        NEC_tx.command = CMD_START;      //NEC_rx.command;
+                    else if(msgTransceiver.cmd == CMD_START){
+                        NEC_tx.address = msgTransceiver.id;     //NEC_rx.address>>8;
+                        NEC_tx.command = CMD_START;              //NEC_rx.command;
                         NEC_tx.timeout = 0;
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
