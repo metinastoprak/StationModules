@@ -26,6 +26,7 @@ typedef enum _RoboState{
     STATE_IDLE,
     STATE_READY,
     STATE_START,
+    STATE_FINISH_GET_ACK,
     STATE_FINISH,
     STATE_MAX
 }RoboState;

@@ -51,7 +51,7 @@ static bool isReadyMsgReceived = 0;
 static bool isStartMsgReceived = 0;
 static bool isFinishACKReceived = 0;
 
-
+static char timerACKmsg = 0;
 
 
 const char * States_Table[STATE_MAX] = {"STATE_IDLE","STATE_READY","STATE_START","STATE_FINISH"};
@@ -59,6 +59,7 @@ const char * States_Table[STATE_MAX] = {"STATE_IDLE","STATE_READY","STATE_START"
 const char * StateMsg_Table[STATE_MAX] = {"STATE_IDLE--> Waiting Ready msg", \
                                           "STATE_READY--> Waiting Start msg", \
                                           "STATE_START--> Race started ..", \
+                                          "STATE_GET_ACK--> Waiting Finish ACK ..", \
                                           "STATE_FINISH--> Race Finished !"};
 
 const char * PrintMsg_CommandWait[4] = {"|","/","-","*"};
@@ -123,7 +124,8 @@ void Transceiver_Init(void) {
     } else {
         Serial.println("TCS34725 NOT FOUND!!");
     }
-   
+
+    RoboParams.state = STATE_IDLE;
 }
 
 /**
@@ -203,7 +205,7 @@ void Transceiver_MsgHandler(void) {
 
             case (CMD_ACK|CMD_FINISH):
                 isFinishACKReceived = true;
-                if (RoboParams.state == STATE_START)
+                if (RoboParams.state == STATE_FINISH_GET_ACK)
                 {
                     // race stopped
                     RoboParams.state = STATE_FINISH;
@@ -247,7 +249,10 @@ void Transceiver_StateHandler(void) {
         }
 #endif 
 
+
     }
+
+ 
  	switch(RoboParams.state)
 	{
 		case STATE_IDLE:
@@ -265,7 +270,8 @@ void Transceiver_StateHandler(void) {
             if(RoboParams.colorState == COLOR_RED)
             {   //send repeatedly until receive ACK command
                 digitalWrite(START_PIN, LOW);
-                send_ir_data(ROBOT_ADDR,CMD_FINISH,5);
+                send_ir_data(ROBOT_ADDR,CMD_FINISH,3);
+                RoboParams.state = STATE_FINISH_GET_ACK;
             }
             else
                 digitalWrite(START_PIN, HIGH);      // pistten çıkıp KIRMIZI görürse,tekrar farklı renk durumunda HIGH
@@ -273,6 +279,15 @@ void Transceiver_StateHandler(void) {
             displayWaitingMessage();
 			break;
 		}
+		case STATE_FINISH_GET_ACK:
+		{	// Check IR-RX message for 200msec
+            
+            if(++timerACKmsg >= 5){
+                timerACKmsg = 0;
+                send_ir_data(ROBOT_ADDR,CMD_FINISH,3);      // resend FINISH command to Portal
+            }    
+            break;
+        }
 		case STATE_FINISH:
 		{	
             Serial.println("******** Race COMPLETED ******");
@@ -333,7 +348,7 @@ void Color_StateHandler(void) {
     if (_colorState !=  RoboParams.colorState)
     {
         RoboParams.colorState = _colorState;
-        bStateTransition = false;
+        //bStateTransition = false;
     }
     /* if color = RED , set PORT=LOW & send finish command */
 

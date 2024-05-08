@@ -52,13 +52,13 @@ void loop() {
        Transceiver_StateHandler();
        prevtime_T1 = currentTime; 
     }
-    else if (currentTime - prevtime_T2 > 150)
+    if (currentTime - prevtime_T2 > 150)
     {
       /* check color state */
       Color_StateHandler();
       prevtime_T2 = currentTime; 
     }
-    else if (currentTime - prevtime_T3 > 50)
+    if (currentTime - prevtime_T3 > 50)
     {
       Transceiver_MsgHandler();
       prevtime_T3 = currentTime;
