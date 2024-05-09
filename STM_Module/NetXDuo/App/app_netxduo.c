@@ -368,13 +368,6 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       Error_Handler();
     }
 
- 
-
-
-  status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
-	  if (status == TX_SUCCESS) {
-		  printf("\r[Portal-->Transceiver] message send: %s\n", message);
-	  }
 
 	  // TX-RX thread dinleme //ardunio dinleme
 	  status = tx_queue_receive(&Portal_queue_ptr, &message, TX_NO_WAIT);
@@ -453,9 +446,10 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", id, cmd, stat);       // addr:NULL --> ALL address  cmd:READY stat:NULL
                   //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
 
-	  
-
-
+      status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
+      if (status == TX_SUCCESS) {
+        printf("\r[Portal-->Transceiver] message send: %s\n", message);
+      }
       /* print the received data */
       //PRINT_DATA(source_ip_address, source_port, data_buffer);
 
