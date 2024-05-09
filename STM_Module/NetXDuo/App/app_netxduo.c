@@ -332,6 +332,14 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
 
   NX_PACKET *data_packet;
 
+  CHAR message[20+2];
+
+   CHAR *id_pos;
+	 CHAR *cmd_pos;
+	 CHAR *stat_pos;
+	 UINT status;
+	 unsigned char id, cmd, stat;
+
   /* create the UDP socket */
   ret = nx_udp_socket_create(&NetXDuoEthIpInstance, &UDPSocket, "UDP Client Socket", NX_IP_NORMAL, NX_FRAGMENT_OKAY, NX_IP_TIME_TO_LIVE, QUEUE_MAX_SIZE);
 
@@ -360,64 +368,10 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       Error_Handler();
     }
 
-    ret = nx_packet_data_append(data_packet, (VOID *)DEFAULT_MESSAGE, sizeof(DEFAULT_MESSAGE), &NxAppPool, TX_WAIT_FOREVER);
-
-    if (ret != NX_SUCCESS)
-    {
-      Error_Handler();
-    }
-
-    /* send the message */
-    ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
-
-    /* wait 10 sec to receive response from the server */
-    ret = nx_udp_socket_receive(&UDPSocket, &server_packet, NX_APP_DEFAULT_TIMEOUT);
-
-    if (ret == NX_SUCCESS)
-    {
-      ULONG source_ip_address;
-      UINT source_port;
-
-      /* get the server IP address and  port */
-      nx_udp_source_extract(server_packet, &source_ip_address, &source_port);
-
-      /* retrieve the data sent by the server */
-      nx_packet_data_retrieve(server_packet, data_buffer, &bytes_read);
-
-      printf("[udp] data_buffer: %s\n", data_buffer);
-
-      CHAR message[20+2];
-
-      CHAR *id_pos;
-	 CHAR *cmd_pos;
-	 CHAR *stat_pos;
-	 UINT status;
-	 unsigned char id, cmd, stat;
-
-	 // get "id:"  "cmd:" "stat:" sub msg
-	 id_pos = strstr(data_buffer, "id:");
-	 cmd_pos = strstr(data_buffer, "cmd:");
-	 stat_pos = strstr(data_buffer, "stat:");
+ 
 
 
-	 // get values & convert to CHAR
-	 if (id_pos != NULL && cmd_pos != NULL && stat_pos != NULL) {
-		 id = (unsigned char)atoi(id_pos + 3);
-		 cmd = (unsigned char)atoi(cmd_pos + 4);
-		 stat = (unsigned char)atoi(stat_pos + 5);
-
-		 printf("[UDP->PORTAL] msg-> id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
-	 }
-	 else {
-		 printf("[UDP->PORTAL] message ERROR id: cmd: stat:   received msg INVALID!\n");
-	 }
-
-
-      //buffer ı queue e ekle
-      snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", id, cmd, stat);       // addr:NULL --> ALL address  cmd:READY stat:NULL
-                  //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
-
-	  status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
+  status = tx_queue_send(&Transceiver_queue_ptr, message, TX_NO_WAIT);
 	  if (status == TX_SUCCESS) {
 		  printf("\r[Portal-->Transceiver] message send: %s\n", message);
 	  }
@@ -449,6 +403,59 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
 	  }
 
 
+    // send connection active
+    ret = nx_packet_data_append(data_packet, (VOID *)DEFAULT_MESSAGE, sizeof(DEFAULT_MESSAGE), &NxAppPool, TX_WAIT_FOREVER);
+    if (ret != NX_SUCCESS)
+    {
+      Error_Handler();
+    }
+
+    /* send the message */
+    ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+
+    /* wait 10 sec to receive response from the server */
+    ret = nx_udp_socket_receive(&UDPSocket, &server_packet, NX_APP_DEFAULT_TIMEOUT);
+
+    if (ret == NX_SUCCESS)
+    {
+      ULONG source_ip_address;
+      UINT source_port;
+
+      /* get the server IP address and  port */
+      nx_udp_source_extract(server_packet, &source_ip_address, &source_port);
+
+      /* retrieve the data sent by the server */
+      nx_packet_data_retrieve(server_packet, data_buffer, &bytes_read);
+
+      printf("[udp] data_buffer: %s\n", data_buffer);
+
+
+	 // get "id:"  "cmd:" "stat:" sub msg
+	 id_pos = strstr(data_buffer, "id:");
+	 cmd_pos = strstr(data_buffer, "cmd:");
+	 stat_pos = strstr(data_buffer, "stat:");
+
+
+	 // get values & convert to CHAR
+	 if (id_pos != NULL && cmd_pos != NULL && stat_pos != NULL) {
+		 id = (unsigned char)atoi(id_pos + 3);
+		 cmd = (unsigned char)atoi(cmd_pos + 4);
+		 stat = (unsigned char)atoi(stat_pos + 5);
+
+		 printf("[UDP->PORTAL] msg-> id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
+	 }
+	 else {
+		 printf("[UDP->PORTAL] message ERROR id: cmd: stat:   received msg INVALID!\n");
+	 }
+
+
+      //buffer ı queue e ekle
+      snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", id, cmd, stat);       // addr:NULL --> ALL address  cmd:READY stat:NULL
+                  //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
+
+	  
+
+
       /* print the received data */
       //PRINT_DATA(source_ip_address, source_port, data_buffer);
 
@@ -463,6 +470,11 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       /* connection lost with the server, exit the loop */
       //break;
     }
+
+
+
+
+
     /* Add a short timeout to let the echool tool correctly
     process the just sent packet before sending a new one */
     tx_thread_sleep(20);

@@ -202,7 +202,6 @@ void Transceiver_MsgHandler(void) {
                 {
                     Serial.println("[Receive] START msg, send NACK");
                     send_ir_data(ROBOT_ADDR,(CMD_NACK|CMD_START),TRANSMIT_REP_COUNT);
-                    //RoboParams.state = STATE_FINISH_GET_ACK;
                 }
                 break;
 
@@ -255,19 +254,6 @@ void Transceiver_StateHandler(void) {
         Serial.print(StateMsg_Table[RoboParams.state]);Serial.print(",  ");
         Serial.println(Colors_Table[RoboParams.colorState]);
         bStateTransition = true;
-#if 0
-        //dummy test code here,comment later
-        if(RoboParams.colorState == COLOR_GREEN) {
-            digitalWrite(START_PIN, HIGH);
-            Serial.println("Motor Start pin HIGH");
-        }
-        else if(RoboParams.colorState == COLOR_RED) {
-            digitalWrite(START_PIN, LOW);
-            Serial.println("Motor Start pin LOW");
-        }
-#endif 
-
-
     }
 
  
@@ -299,8 +285,7 @@ void Transceiver_StateHandler(void) {
 		}
 		case STATE_FINISH_GET_ACK:
 		{	// Check IR-RX message for 200msec
-            
-            if(++timerACKmsg >= 5){
+           if(++timerACKmsg >= 4){
                 timerACKmsg = 0;
                 send_ir_data(ROBOT_ADDR,CMD_FINISH,TRANSMIT_REP_COUNT);      // resend FINISH command to Portal
                 //RoboParams.state = STATE_IDLE;
@@ -329,13 +314,20 @@ void send_ir_data(uint16_t sAddress,uint8_t sCommand,uint8_t sRepeats) {
     do {
         if (IrReceiver.decode())
         {
+            if (RoboParams.state == STATE_FINISH_GET_ACK) {
+                //Transceiver_MsgHandler();
+                if (IrReceiver.decodedIRData.address == ROBOT_ID && IrReceiver.decodedIRData.command == (CMD_ACK|CMD_FINISH))
+                {
+                    RoboParams.state = STATE_FINISH;
+                    Serial.println("[Receive] FINISH ACK msg");
+                }
+            }
             timerRX_timeout = 0;
             IrReceiver.resume();
         }
-        else {
-        }
         delay(10);
-    }while(++timerRX_timeout < 50); 
+    }while(++timerRX_timeout < 50);
+
     Serial.println("RX signal timeout");
 
     IrReceiver.stop();delay(50);

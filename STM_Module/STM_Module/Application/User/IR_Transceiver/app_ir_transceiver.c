@@ -222,8 +222,8 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
                     else if (msgTransceiver.cmd  == CMD_FINISH){
-                        NEC_tx.address = (NEC_rx.address & 0xFF);    //get received address
-                        NEC_tx.command = CMD_ACK|CMD_FINISH;         //NEC_rx.command;
+                        NEC_tx.address = msgTransceiver.id;         //get received address
+                        NEC_tx.command = CMD_ACK|CMD_FINISH;        //NEC_rx.command;
                         NEC_tx.timeout = 0;
                         printf("\r[NEC TX] send FINISH-ACK for id:%02d\n",NEC_tx.address);
                         NEC_TX_XmitHandler(&NEC_tx);
@@ -239,7 +239,15 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             }
             case MSG_STATE_PROCESS:
             {	
-                NEC_RX_StartCapture(&NEC_rx);               // enable receive
+                if (msgTransceiver.cmd  == CMD_FINISH) {
+                    if (NEC_rx.state != NEC_RX_STATE_IDLE){
+                        NEC_RX_StopCapture(&NEC_rx);               // enable receive
+                        printf("\r[NEC RX] stopped after FINISH command\n");
+                    }
+                }
+                else {
+                    NEC_RX_StartCapture(&NEC_rx);               // enable receive
+                }
                 msgTransceiver.state = MSG_STATE_IDLE;      // re-check queue message
                 break;
             }
@@ -262,6 +270,7 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                 if (++NEC_rx.timeout >= (TICK_1_SEC/10))
                 {
                     if (NEC_rx.command == CMD_FINISH){
+                        msgTransceiver.id = (NEC_rx.address & 0xFF);
                         msgTransceiver.state = MSG_STATE_READY;         // send ACK command for FINISH
                         msgTransceiver.cmd = CMD_FINISH;
                     }
@@ -392,6 +401,7 @@ VOID Portal_thread_entry(ULONG initial_param) {
         // check is there any msg avaliable to be sent?
         timerMSG++;
         if (timerMSG ==50) {
+
             //after 5sec send ready msg to TRANSCEIVER thread
             snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", CMD_NULL, CMD_READY,CMD_NULL);       // addr:NULL --> ALL address  cmd:READY stat:NULL
             //snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", 16, CMD_START,CMD_NULL);       // addr:ID  cmd:START stat:NULL
