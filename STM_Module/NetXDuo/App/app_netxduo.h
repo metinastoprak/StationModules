@@ -87,7 +87,7 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 
 #define DEFAULT_PORT             6000
 #define UDP_SERVER_PORT          DEFAULT_PORT
-#define UDP_SERVER_ADDRESS       IP_ADDRESS(192, 168, 80, 71)
+#define UDP_SERVER_ADDRESS       IP_ADDRESS(192, 168, 1, 2)
 
 #define MAX_PACKET_COUNT         4
 #define DEFAULT_MESSAGE          "connection active"
