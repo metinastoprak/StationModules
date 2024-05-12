@@ -325,7 +325,6 @@ static VOID nx_app_thread_entry (ULONG thread_input)
 static VOID App_UDP_Thread_Entry(ULONG thread_input)
 {
   UINT ret;
-  UINT count = 0;
   ULONG bytes_read;
   NX_PACKET *server_packet;
   UCHAR data_buffer[512];
@@ -340,7 +339,6 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
 	 UINT status;
 	 unsigned char id, cmd, stat;
 
-	 static CHAR connectServer = 0;
 
   /* create the UDP socket */
   ret = nx_udp_socket_create(&NetXDuoEthIpInstance, &UDPSocket, "UDP Client Socket", NX_IP_NORMAL, NX_FRAGMENT_OKAY, NX_IP_TIME_TO_LIVE, QUEUE_MAX_SIZE);
@@ -361,6 +359,8 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
   while(1)
   {
 
+	printf("\rUDP_Thread_Entry\n");
+
     TX_MEMSET(data_buffer, '\0', sizeof(data_buffer));
 
     /* create the packet to send over the UDP socket */
@@ -371,7 +371,7 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       Error_Handler();
     }
 
-    // send connection active
+     //send connection active
       ret = nx_packet_data_append(data_packet, (VOID *)DEFAULT_MESSAGE, sizeof(DEFAULT_MESSAGE), &NxAppPool, TX_WAIT_FOREVER);
       if (ret != NX_SUCCESS)
       {
@@ -439,7 +439,7 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
       /* connection lost with the server, exit the loop */
       //break;
     }
-
+#if 0
     // TX-RX thread dinleme //ardunio dinleme
   	  status = tx_queue_receive(&Portal_queue_ptr, &message, TX_NO_WAIT);
   	  if (status == TX_SUCCESS) {
@@ -465,7 +465,9 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
   		  /* send the message */
   		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
   	  }
+#endif
 
+  	printf("\rUDP_Thread_Exit\n");
 
     /* Add a short timeout to let the echool tool correctly
     process the just sent packet before sending a new one */
@@ -477,6 +479,48 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
 
 }
 
+VOID App_UDP_Thread_SendMESSAGE(void)
+{
+	 UINT status;
+   UINT ret;
+  NX_PACKET *data_packet;
+  CHAR message[20+2];
+
+
+    // TX-RX thread dinleme //ardunio dinleme
+  	  status = tx_queue_receive(&Portal_queue_ptr, &message, TX_NO_WAIT);
+  	  if (status == TX_SUCCESS) {
+  		  // Message received , parse it
+  		  printf("[Portal Queue] message received: %s\n", message);
+
+  		  //send message to portal
+        ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
+
+        if (ret != NX_SUCCESS)
+        {
+        Error_Handler();
+        }
+
+  		  //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
+  		  ret = nx_packet_data_append(data_packet, (VOID *)message, sizeof(message), &NxAppPool, TX_WAIT_FOREVER);
+
+  		  if (ret != NX_SUCCESS)
+  		  {
+  			Error_Handler();
+  		  }
+
+  		  /* send the message */
+  		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+        printf("\r[Portal] nx_udp_socket_send ret:%d\n",ret);
+        nx_packet_release(data_packet);
+  	  }
+      else
+      {
+        //printf("\r[Portal Queue ERROR] status:%d\n",status);
+      }
+
+
+}
 /**
 * @brief  Link thread entry
 * @param thread_input: ULONG thread parameter

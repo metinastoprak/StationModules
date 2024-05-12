@@ -116,6 +116,7 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 #define NX_APP_DEFAULT_NET_MASK                     0
 
 /* USER CODE BEGIN 1 */
+extern VOID App_UDP_Thread_SendMESSAGE(void);
 
 /* USER CODE END 1 */
 

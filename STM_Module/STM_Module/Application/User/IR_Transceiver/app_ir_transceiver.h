@@ -50,7 +50,7 @@ typedef enum _msgState{
 /*******************************************************************************
 * EXPORTED DEFS
 ********************************************************************************/
-#define THREAD_STACK_SIZE       1024
+#define THREAD_STACK_SIZE       1024*2
 #define QUEUE_STACK_SIZE        32*4
 #define TRANSCEIVER_PRIORITY    8
 #define PORTAL_PRIORITY         9

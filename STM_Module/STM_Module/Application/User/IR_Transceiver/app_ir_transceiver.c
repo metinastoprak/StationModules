@@ -10,7 +10,7 @@
 #include "stdio.h"
 #include "main.h"
 #include "app_ir_transceiver.h"
-
+#include "app_netxduo.h"
 
 
 /*******************************************************************************
@@ -193,7 +193,7 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
     
     while (1)
     {
-        tx_thread_sleep(10);        //100ms sleep
+        tx_thread_sleep(20);        //100ms sleep
 
         switch(msgTransceiver.state)
         {
@@ -201,6 +201,8 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             {
                 // check queue for incoming message?
                 Transceiver_CheckQueueMessage();
+                App_UDP_Thread_SendMESSAGE();
+
                 break;
             }
             case MSG_STATE_READY:
