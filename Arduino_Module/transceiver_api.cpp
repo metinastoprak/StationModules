@@ -373,7 +373,7 @@ void Color_StateHandler(void) {
     if (_colorState !=  RoboParams.colorState)
     {
         RoboParams.colorState = _colorState;
-        //bStateTransition = false;
+        bStateTransition = false;
     }
     /* if color = RED , set PORT=LOW & send finish command */
 

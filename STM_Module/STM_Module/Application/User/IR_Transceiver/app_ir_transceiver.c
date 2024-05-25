@@ -65,9 +65,9 @@ typedef struct {
     uint16_t address;
     uint8_t command;
 
-    void (*Rx_DecodedCallback)();
-    void (*Rx_ErrorCallback)();
-    void (*Rx_RepeatCallback)();
+    void (*Rx_DecodedCallback)(uint8_t);
+    void (*Rx_ErrorCallback)(uint8_t);
+    void (*Rx_RepeatCallback)(uint8_t);
 }t_NEC_RX;
 
 typedef struct _t_NEC_TX {
@@ -86,6 +86,9 @@ typedef struct _t_NEC_TX {
     uint8_t command;
     uint32_t rawBitData;
     uint32_t encodedData;
+    uint8_t readyMSG;
+    uint8_t startMSG;
+
 
     uint8_t bitCount;
     uint16_t markspace[(NEC_BIT_LENGHT+2)<<1];
@@ -98,6 +101,13 @@ typedef struct _msgQueue {
     uint8_t cmd;
     msgState state;
 }t_msgQueue;
+
+const char * NEC_rx_State[NEC_RX_STATE_MAX] = {" IDLE", \
+                                                "INIT", \
+                                                "HEAD_OK", \
+                                                "HEAD_FAIL", \
+                                                "ERROR", \
+                                                "DONE"};
 
 
 
@@ -116,11 +126,16 @@ TX_THREAD portal_ptr;
 
 
 // instansce NEC_rx and NEC_tx object
-t_NEC_RX NEC_rx;
+t_NEC_RX NEC_rx[2];
 volatile t_NEC_TX NEC_tx;
 
 t_msgQueue msgTransceiver;
 t_msgQueue msgPortal;
+
+t_msgQueue lastmsgReceived;
+
+
+char logmsg[50];
 
 /*******************************************************************************
 * LOCAL FUNCTION PROTOTYPES
@@ -140,9 +155,9 @@ void NEC_RX_StartCapture(t_NEC_RX* handle);
 void NEC_RX_StopCapture(t_NEC_RX* handle) ;
 
 // callback functions
-void NEC_RX_DecodeHandler(void);
-void NEC_RX_ErrorHandler(void);
-void NEC_RX_RepeatHandler(void);
+void NEC_RX_DecodeHandler(IRsensor num);
+void NEC_RX_ErrorHandler(IRsensor num);
+void NEC_RX_RepeatHandler(IRsensor num);
 
 // NEC -TX Protocol Functions 
 void NEC_TX_Init(volatile t_NEC_TX* handle);
@@ -185,7 +200,7 @@ void Transceiver_Init(void) {
 VOID Transceiver_thread_entry(ULONG initial_param) {
     
 
-    NEC_RX_Init(&NEC_rx);
+    NEC_RX_Init(&NEC_rx[SENSOR_1]);
     NEC_TX_Init(&NEC_tx);
 
     msgTransceiver.state = MSG_STATE_IDLE;
@@ -203,6 +218,24 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                 Transceiver_CheckQueueMessage();
                 App_UDP_Thread_SendMESSAGE();
 
+                if (msgTransceiver.state == MSG_STATE_IDLE ){
+                    if (++NEC_tx.timeout >= 10){
+                        NEC_tx.timeout = 0;
+                        printf("\r[NEC TX] timeout, resend last packet \n");
+                        if (NEC_tx.readyMSG){
+                            printf("\r[NEC TX] timeout, resend READY comamnd\n");
+                            msgTransceiver.state = MSG_STATE_READY;
+                            NEC_tx.state = NEC_TX_STATE_IDLE;
+                            msgTransceiver = lastmsgReceived;                   
+                        }
+                        else if (NEC_tx.startMSG){
+                            printf("\r[NEC TX] timeout, resend START comamnd\n");
+                            msgTransceiver.state = MSG_STATE_READY;
+                            NEC_tx.state = NEC_TX_STATE_IDLE;
+                            msgTransceiver = lastmsgReceived;                   
+                        }
+                    }
+                }
                 break;
             }
             case MSG_STATE_READY:
@@ -210,23 +243,29 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
                 if (NEC_tx.state == NEC_TX_STATE_IDLE)
                 {
                     
-                    NEC_RX_StopCapture(&NEC_rx);        // disable receive
+                    NEC_RX_StopCapture(&NEC_rx[SENSOR_1]);        // disable receive
+                    NEC_RX_StopCapture(&NEC_rx[SENSOR_2]);
                     if (msgTransceiver.cmd == CMD_READY) {
                         NEC_tx.address = CMD_ADR_ALL;    //NEC_rx.address>>8;
                         NEC_tx.command = CMD_READY;      //NEC_rx.command;
                         NEC_tx.timeout = 0;
+                        NEC_tx.readyMSG = 1;
+                        NEC_tx.startMSG = 0;
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
                     else if(msgTransceiver.cmd == CMD_START){
                         NEC_tx.address = msgTransceiver.id;     //NEC_rx.address>>8;
                         NEC_tx.command = CMD_START;              //NEC_rx.command;
                         NEC_tx.timeout = 0;
+                        NEC_tx.readyMSG = 0;
+                        NEC_tx.startMSG = 1;
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
                     else if (msgTransceiver.cmd  == CMD_FINISH){
                         NEC_tx.address = msgTransceiver.id;         //get received address
                         NEC_tx.command = CMD_ACK|CMD_FINISH;        //NEC_rx.command;
                         NEC_tx.timeout = 0;
+
                         printf("\r[NEC TX] send FINISH-ACK for id:%02d\n",NEC_tx.address);
                         NEC_TX_XmitHandler(&NEC_tx);
                     }
@@ -242,13 +281,20 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
             case MSG_STATE_PROCESS:
             {	
                 if (msgTransceiver.cmd  == CMD_FINISH) {
-                    if (NEC_rx.state != NEC_RX_STATE_IDLE){
-                        NEC_RX_StopCapture(&NEC_rx);               // enable receive
-                        printf("\r[NEC RX] stopped after FINISH command\n");
+                    if (NEC_rx[SENSOR_1].state != NEC_RX_STATE_IDLE){
+                        NEC_RX_StopCapture(&NEC_rx[SENSOR_1]);               // enable receive
+                        printf("\r[NEC RX1] stopped after FINISH command\n");
                     }
+                    if (NEC_rx[SENSOR_2].state != NEC_RX_STATE_IDLE){
+                        NEC_RX_StopCapture(&NEC_rx[SENSOR_2]);               // enable receive
+                        printf("\r[NEC RX2] stopped after FINISH command\n");
+                    }
+
                 }
                 else {
-                    NEC_RX_StartCapture(&NEC_rx);               // enable receive
+                        NEC_RX_StartCapture(&NEC_rx[SENSOR_1]);               // enable receive....
+                        NEC_RX_StartCapture(&NEC_rx[SENSOR_2]);               // enable receive....
+
                 }
                 msgTransceiver.state = MSG_STATE_IDLE;      // re-check queue message
                 break;
@@ -256,44 +302,49 @@ VOID Transceiver_thread_entry(ULONG initial_param) {
         }
 
 
-        switch(NEC_rx.state)
+    for(uint8_t ch=0;ch<SENSOR_MAX;ch++){
+        switch(NEC_rx[ch].state)
         {
             case NEC_RX_HEAD_OK:
             {	// wait for 1sec to capture signal
-                if (++NEC_rx.timeout >= (TICK_1_SEC/10))
-                {
-                    NEC_rx.Rx_ErrorCallback();                         
-                } 
+                if (NEC_rx[ch].state != NEC_RX_STATE_INIT){
+                    if (++NEC_rx[ch].timeout >= (TICK_1_SEC/10))
+                    {
+                        NEC_rx[ch].Rx_ErrorCallback(ch);                         
+                    } 
+                }
+
                 break;
             }
             case NEC_RX_STATE_DONE:
             {	// if finish command received?
                 
-                if (++NEC_rx.timeout >= (TICK_1_SEC/10))
+                if (++NEC_rx[ch].timeout >= (TICK_1_SEC/10))
                 {
-                    if (NEC_rx.command == CMD_FINISH){
-                        msgTransceiver.id = (NEC_rx.address & 0xFF);
+                    if (NEC_rx[ch].command == CMD_FINISH){
+                        msgTransceiver.id = (NEC_rx[ch].address & 0xFF);
                         msgTransceiver.state = MSG_STATE_READY;         // send ACK command for FINISH
                         msgTransceiver.cmd = CMD_FINISH;
                     }
-                    printf("\r[NEC RX] timeout, bus IDLE ...\n ");
-                    NEC_RX_StopCapture(&NEC_rx);
+                    printf("\r[NEC RX%d] timeout, bus IDLE ...\n ",ch+1);
+                    NEC_RX_StopCapture(&NEC_rx[ch]);
                 }
                 break;
             }
             default: 
             {
                 if ((msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE || NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE)) {
-                    NEC_tx.state = NEC_TX_STATE_IDLE;
+                    //NEC_tx.state = NEC_TX_STATE_IDLE;
 
-                    if (NEC_rx.state != NEC_RX_STATE_INIT) {
-                        printf("\r[NEC RX] Allstates at IDLE state...\n ");
-                        NEC_RX_StartCapture(&NEC_rx);
-                    }
+                    //printf("\r[NEC RX%d] Allstates at IDLE state...\n ",ch+1);
+                    if (NEC_rx[ch].state != NEC_RX_STATE_INIT){
+                        NEC_RX_StartCapture(&NEC_rx[ch]);
+                    }    
                 }
                 break;
             }
         }
+    }
 #if 0
         if ((msgTransceiver.state == MSG_STATE_IDLE) && (NEC_tx.state == NEC_TX_STATE_IDLE || NEC_tx.state == NEC_TX_STATE_TRANSMIT_DONE)) {
             printf("\r[NEC RX] Allstates at IDLE state...\n ");
@@ -353,7 +404,16 @@ void Transceiver_CheckQueueMessage(void){
     CHAR *cmd_pos;      
     CHAR *stat_pos;     
     unsigned char id, cmd, stat;
+    static CHAR livecount= 0;
 
+
+    if (++livecount >= 10){
+        livecount = 0;
+        printf("\r[Transceiver] RX1 State:%s, RX2 State:%s\n",NEC_rx_State[NEC_rx[SENSOR_1].state], NEC_rx_State[NEC_rx[SENSOR_2].state]);
+
+        snprintf(logmsg, sizeof(logmsg), "RX1 State:%s, RX2 State:%s",NEC_rx_State[NEC_rx[SENSOR_1].state], NEC_rx_State[NEC_rx[SENSOR_2].state]);
+        SENDLOG();
+    }
     status = tx_queue_receive(&Transceiver_queue_ptr, &message, TX_NO_WAIT);
     if (status == TX_SUCCESS) {
         // Message received , parse it
@@ -372,7 +432,12 @@ void Transceiver_CheckQueueMessage(void){
             msgTransceiver.state = MSG_STATE_READY;
             msgTransceiver.id = id;
             msgTransceiver.cmd = cmd;
+            lastmsgReceived = msgTransceiver; 
             printf("\r[Transceiver RecieveMsg] id: %u, cmd: %u, stat: %u\n", id, cmd, stat);
+
+            snprintf(logmsg, sizeof(logmsg), "id: %u, cmd: %u, stat: %u", id, cmd, stat);
+            SENDLOG();
+
         } 
         else {
             printf("\r[Transceiver RecieveMsg] ERROR id: cmd: stat:   received msg INVALID!\n");
@@ -434,35 +499,43 @@ VOID Portal_thread_entry(ULONG initial_param) {
  * @param  None
  * @retval None
  */
-void NEC_RX_DecodeHandler(void) {
+void NEC_RX_DecodeHandler(IRsensor num) {
     UINT status;
     CHAR message[20+2];
     CHAR ack = 1;
 
     //NEC_Rx_Read(&nec);
-    printf("\r[NEC RX] frame captured Address:0x%X , Command:0x%X\n ",NEC_rx.address,NEC_rx.command);
-    ack = NEC_rx.command>>4;
-    NEC_rx.command &= 0x0F; 
-    if (NEC_rx.command == CMD_READY || NEC_rx.command == CMD_START )
+    printf("\r[NEC RX%d] frame captured Address:0x%X , Command:0x%X\n ",num+1,NEC_rx[num].address,NEC_rx[num].command);
+    ack = NEC_rx[num].command>>4;
+    NEC_rx[num].command &= 0x0F; 
+    if (NEC_rx[num].command == CMD_READY || NEC_rx[num].command == CMD_START )
     {
         if (ack != 0x0F && ack != 0x01)
         {
-            printf("\r[NEC RX] invalid ACK :%02d\n",ack);return;
+            printf("\r[NEC RX%d] invalid ACK :%02d\n",num+1,ack);return;
         }
+        if (ack == 0x01 && NEC_rx[num].command == CMD_READY){
+            NEC_tx.readyMSG = 0;
+        }
+        if (ack == 0x01 && NEC_rx[num].command == CMD_START){
+            NEC_tx.startMSG = 0;
+        }
+
     }
-    else if (NEC_rx.command == CMD_FINISH){
-        printf("[NEC RX] FINISH command received ");
+    else if (NEC_rx[num].command == CMD_FINISH){
+        printf("[NEC RX%d] FINISH command received\n ",num+1);
     }
     else
     {
-        printf("[NEC RX] INVALID command received "); return;
+        printf("[NEC RX%d] INVALID command received\n",num+1); return;
     }
-    snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", (NEC_rx.address & 0xFF), NEC_rx.command & 0x0f,ack);
+    snprintf(message, sizeof(message), "id:%02d cmd:%02d stat:%02d", (NEC_rx[num].address & 0xFF), NEC_rx[num].command & 0x0f,ack);
     //sprintf(message, "id:%02d cmd:%02d stat:%02d", NEC_rx.address>>8, NEC_rx.command>>4,NEC_rx.command & 0x01);
 
     status = tx_queue_send(&Portal_queue_ptr, message, TX_NO_WAIT);
     if (status == TX_SUCCESS) {
         printf("\r[Transceiver-->Portal] message send: %s\n", message);
+
     }   
 
 }
@@ -471,23 +544,23 @@ void NEC_RX_DecodeHandler(void) {
  * @param  None
  * @retval None
  */
-void NEC_RX_ErrorHandler(void) {
+void NEC_RX_ErrorHandler(IRsensor ch) {
 
-    printf("\r[NEC RX] Timeout or Error handled! \n ");
+    printf("\r[NEC RX%d] Timeout or Error handled! \n ",ch+1);
     tx_thread_sleep(10);
-    NEC_RX_StartCapture(&NEC_rx);
+    NEC_RX_StartCapture(&NEC_rx[ch]);
 }
 /**
  * @brief  NEC protocol repeat state handler
  * @param  None
  * @retval None
  */
-void NEC_RX_RepeatHandler(void) {
+void NEC_RX_RepeatHandler(IRsensor ch) {
 
     //NEC_Rx_Read(&nec);
-    printf("\r[NEC RX] repeat \n ");
+    printf("\r[NEC RX%d] repeat \n ",ch+1);
     tx_thread_sleep(10);
-    NEC_RX_StartCapture(&NEC_rx);
+    NEC_RX_StartCapture(&NEC_rx[ch]);
 }
 
 
@@ -501,19 +574,30 @@ void NEC_RX_RepeatHandler(void) {
  * @retval None
  */
 void NEC_RX_Init(t_NEC_RX* handle) {
-    handle->timerHandle = &htim1;
 
-    handle->timerChannel = TIM_CHANNEL_1;
-    handle->timerChannelActive = HAL_TIM_ACTIVE_CHANNEL_1;
+    for (uint8_t sensor=0;sensor<SENSOR_MAX;sensor++){
+        handle = &NEC_rx[sensor];
+        handle->timerHandle = &htim1;
 
-    handle->timingBITboundary = (NEC_TIME_BIT0+NEC_TIME_BIT1)>>1;    //   1125 >---boundary---< 2250
-    handle->timingHEADboundary = NEC_TIME_HEAD>>2;
+        if (sensor == 0){
+            handle->timerChannel = TIM_CHANNEL_1;
+            handle->timerChannelActive = HAL_TIM_ACTIVE_CHANNEL_1;
+        }
+        else{
+            handle->timerChannel = TIM_CHANNEL_2;
+            handle->timerChannelActive = HAL_TIM_ACTIVE_CHANNEL_2;
+        }
+        
 
-    handle->Rx_DecodedCallback = NEC_RX_DecodeHandler;
-    handle->Rx_ErrorCallback = NEC_RX_ErrorHandler;
-    handle->Rx_RepeatCallback = NEC_RX_RepeatHandler;
+        handle->timingBITboundary = (NEC_TIME_BIT0+NEC_TIME_BIT1)>>1;    //   1125 >---boundary---< 2250
+        handle->timingHEADboundary = NEC_TIME_HEAD>>2;
 
-    printf("[NEC RX] state_init with TIM1_CH1\n ");
+        handle->Rx_DecodedCallback = NEC_RX_DecodeHandler;
+        handle->Rx_ErrorCallback = NEC_RX_ErrorHandler;
+        handle->Rx_RepeatCallback = NEC_RX_RepeatHandler;
+
+    }
+    printf("[NEC RX] state_init with TIM1_CH1 and TIM1_CH2\n ");
 
     //NEC_RX_StartCapture(handle);
 }
@@ -523,8 +607,12 @@ void NEC_RX_Init(t_NEC_RX* handle) {
  * @retval None
  */
 void NEC_RX_StartCapture(t_NEC_RX* handle) {
+
     handle->state = NEC_RX_STATE_INIT;
-    printf("\r[NEC RX] capture IR signal ready...\n ");
+    if (handle->timerChannel == TIM_CHANNEL_1)
+        printf("\r[NEC RX-1] capture IR signal ready...\n ");
+    else if (handle->timerChannel == TIM_CHANNEL_2)
+        printf("\r[NEC RX-2] capture IR signal ready...\n ");
 
     handle->timeout = 0;
     handle->decoded[0]=0;handle->decoded[1]=0;
@@ -532,6 +620,7 @@ void NEC_RX_StartCapture(t_NEC_RX* handle) {
     HAL_TIM_IC_Stop_DMA(handle->timerHandle, handle->timerChannel);
     HAL_TIM_IC_Start_DMA(handle->timerHandle, handle->timerChannel,
             (uint32_t*) handle->rawTimerData, 4);
+
     HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin,0);
 }
 /**
@@ -540,8 +629,12 @@ void NEC_RX_StartCapture(t_NEC_RX* handle) {
  * @retval None
  */
 void NEC_RX_StopCapture(t_NEC_RX* handle) {
+
     handle->state = NEC_RX_STATE_IDLE;
-    printf("\r[NEC RX] STOP capture IR signal\n ");
+    if (handle->timerChannel == TIM_CHANNEL_1)
+        printf("\r[NEC RX-1] STOP capture IR signal\n ");
+    else if (handle->timerChannel == TIM_CHANNEL_2)
+        printf("\r[NEC RX-2] STOP capture IR signal\n ");
 
     handle->timeout = 0;
     handle->decoded[0]=0;handle->decoded[1]=0;
@@ -555,7 +648,10 @@ void NEC_RX_StopCapture(t_NEC_RX* handle) {
  */
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim1) {
-        NEC_RX_TIM_IC_CaptureCallback(&NEC_rx);
+        if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+            NEC_RX_TIM_IC_CaptureCallback(&NEC_rx[SENSOR_1]);
+        if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
+            NEC_RX_TIM_IC_CaptureCallback(&NEC_rx[SENSOR_2]);
     }
 }
 
@@ -568,7 +664,7 @@ void NEC_RX_TIM_IC_CaptureCallback(t_NEC_RX *handle)
 {
 
     uint16_t diffTime;
-
+    uint8_t ch = handle->timerChannelActive-1; 
     handle->timeout = 0;
     if (handle->state == NEC_RX_STATE_INIT) {
 
@@ -602,7 +698,7 @@ void NEC_RX_TIM_IC_CaptureCallback(t_NEC_RX *handle)
 
             }
             else {   // bit timing error
-                handle->Rx_ErrorCallback();return;
+                handle->Rx_ErrorCallback(ch);return;
             }
             handle->rawTimerData[pos] = diffTime; 
         }
@@ -616,10 +712,10 @@ void NEC_RX_TIM_IC_CaptureCallback(t_NEC_RX *handle)
             HAL_TIM_IC_Start_DMA(handle->timerHandle, handle->timerChannel,
             (uint32_t*) handle->rawTimerData, 2);
 
-            handle->Rx_DecodedCallback();
+            handle->Rx_DecodedCallback(ch);
         }
         else {
-            handle->Rx_ErrorCallback();    
+            handle->Rx_ErrorCallback(ch);    
         }
     } else if (handle->state == NEC_RX_STATE_DONE) {
         HAL_TIM_IC_Start_DMA(handle->timerHandle, handle->timerChannel,
@@ -646,6 +742,9 @@ void NEC_TX_Init(volatile t_NEC_TX* handle) {
 
     handle->Tx_XmitCallback = NEC_TX_SendMarkSpace;
     handle->state = NEC_TX_STATE_IDLE;
+    handle->readyMSG = 0;
+    handle->startMSG = 0;
+
     printf("[NEC TX] state_init with TIM2_CH1\n ");
 }
 /**

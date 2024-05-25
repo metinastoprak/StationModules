@@ -314,6 +314,7 @@ static VOID nx_app_thread_entry (ULONG thread_input)
   /* the network is correctly initialized, start the UDP thread */
   tx_thread_resume(&AppUDPThread);
 
+
   /* this thread is not needed any more, we relinquish it */
   tx_thread_relinquish();
 
@@ -478,14 +479,13 @@ static VOID App_UDP_Thread_Entry(ULONG thread_input)
   nx_udp_socket_delete(&UDPSocket);
 
 }
-
+/* Send Transcevir Msg to Portal via UDP port */
 VOID App_UDP_Thread_SendMESSAGE(void)
 {
 	 UINT status;
    UINT ret;
   NX_PACKET *data_packet;
   CHAR message[20+2];
-
 
     // TX-RX thread dinleme //ardunio dinleme
   	  status = tx_queue_receive(&Portal_queue_ptr, &message, TX_NO_WAIT);
@@ -511,6 +511,10 @@ VOID App_UDP_Thread_SendMESSAGE(void)
 
   		  /* send the message */
   		  ret = nx_udp_socket_send(&UDPSocket, data_packet, UDP_SERVER_ADDRESS, UDP_SERVER_PORT);
+
+        snprintf(logmsg, sizeof(message),message);
+        SENDLOG();
+
         printf("\r[Portal] nx_udp_socket_send ret:%d\n",ret);
         nx_packet_release(data_packet);
   	  }
@@ -518,9 +522,8 @@ VOID App_UDP_Thread_SendMESSAGE(void)
       {
         //printf("\r[Portal Queue ERROR] status:%d\n",status);
       }
-
-
 }
+
 /**
 * @brief  Link thread entry
 * @param thread_input: ULONG thread parameter
@@ -536,6 +539,7 @@ static VOID App_Link_Thread_Entry(ULONG thread_input)
     /* Get Physical Link stackavailtus. */
     status = nx_ip_interface_status_check(&NetXDuoEthIpInstance, 0, NX_IP_LINK_ENABLED,
                                       &actual_status, 10);
+
 
     if(status == NX_SUCCESS)
     {
@@ -577,4 +581,41 @@ static VOID App_Link_Thread_Entry(ULONG thread_input)
     tx_thread_sleep(NX_APP_CABLE_CONNECTION_CHECK_PERIOD);
   }
 }
+
+#if 1
+/* Send Transceiver Msg to Portal via UDP port */
+void App_UDP_Thread_Send_LOG(void)
+{
+  UINT ret;
+  NX_PACKET *data_packet;
+  CHAR message[70];
+  //CHAR * message;
+
+    memset(message, 0, sizeof(message));
+
+    snprintf(message, sizeof(message), "PORT:%d ", UDP_SERVER_PORT);
+    strcpy(&message[10], logmsg);
+
+    ret = nx_packet_allocate(&NxAppPool, &data_packet, NX_UDP_PACKET, TX_WAIT_FOREVER);
+
+    if (ret != NX_SUCCESS)
+    {
+    Error_Handler();
+    }
+
+    //ret = nx_packet_data_append(data_packet, (VOID *)"44,11,22,33", sizeof("44,11,22,33"), &NxAppPool, TX_WAIT_FOREVER);
+    ret = nx_packet_data_append(data_packet, (VOID *)message, sizeof(message), &NxAppPool, TX_WAIT_FOREVER);
+
+    if (ret != NX_SUCCESS)
+    {
+      Error_Handler();
+    }
+
+    /* send the message */
+    ret = nx_udp_socket_send(&UDPSocket, data_packet, PRINTF_SERVER_ADDRESS, PRINTF_PORT);
+
+    nx_packet_release(data_packet);
+}
+#endif
+
 /* USER CODE END 1 */

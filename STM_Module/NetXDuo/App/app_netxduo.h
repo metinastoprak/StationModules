@@ -85,9 +85,15 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 
 #define LINK_PRIORITY            11
 
-#define DEFAULT_PORT             6000
+
+
+#define DEFAULT_PORT             6002
+#define MAC_ADDRESS              62
 #define UDP_SERVER_PORT          DEFAULT_PORT
 #define UDP_SERVER_ADDRESS       IP_ADDRESS(192, 168, 1, 2)
+
+#define PRINTF_PORT              6000
+#define PRINTF_SERVER_ADDRESS    IP_ADDRESS(192, 168, 1, 3)
 
 #define MAX_PACKET_COUNT         4
 #define DEFAULT_MESSAGE          "connection active"
@@ -117,6 +123,10 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr);
 
 /* USER CODE BEGIN 1 */
 extern VOID App_UDP_Thread_SendMESSAGE(void);
+extern VOID App_UDP_Thread_Send_LOG(void);
+
+#define SENDLOG() App_UDP_Thread_Send_LOG()
+
 
 /* USER CODE END 1 */
 

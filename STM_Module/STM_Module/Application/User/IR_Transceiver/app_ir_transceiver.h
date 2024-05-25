@@ -29,7 +29,8 @@ typedef enum _NEC_RxState{
     NEC_RX_HEAD_OK,
     NEC_RX_HEAD_FAIL,
     NEC_RX_STATE_ERROR,
-    NEC_RX_STATE_DONE
+    NEC_RX_STATE_DONE,
+    NEC_RX_STATE_MAX
 }NEC_RxState;
 
 
@@ -45,6 +46,12 @@ typedef enum _msgState{
     MSG_STATE_READY,
     MSG_STATE_PROCESS,
 }msgState;
+
+typedef enum _sensor{
+    SENSOR_1,
+    SENSOR_2,
+    SENSOR_MAX
+}IRsensor;
 
 
 /*******************************************************************************
@@ -108,6 +115,7 @@ INTERFACE VOID Portal_queue_send_callback(TX_QUEUE *queue_ptr);
 
 INTERFACE void Transceiver_Init(void);
 INTERFACE void NEC_TX_SendMarkSpace(void);
+INTERFACE char logmsg[50];
 
 
 #undef	INTERFACE
