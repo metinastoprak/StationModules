@@ -7,7 +7,7 @@
   ******************************************************************************
     * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -79,7 +79,7 @@ UINT MX_NetXDuo_Init(VOID *memory_ptr)
   TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
    /* USER CODE BEGIN App_NetXDuo_MEM_POOL */
-
+  (void)byte_pool;
   /* USER CODE END App_NetXDuo_MEM_POOL */
   /* USER CODE BEGIN 0 */
   printf("Nx_UDP_Echo_Client application started..\n");

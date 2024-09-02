@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../../../RoboRally/StationsModule/STM_Module"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"main.h": "c",
+			"app_netxduo.h": "c",
+			"compare": "c",
+			"tx_queue.h": "c",
+			"utility": "c"
+		}
+	}
+}

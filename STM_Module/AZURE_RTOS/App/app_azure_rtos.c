@@ -7,7 +7,7 @@
   ******************************************************************************
     * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -87,6 +87,7 @@ VOID tx_application_define(VOID *first_unused_memory)
   if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN TX_Byte_Pool_Error */
+    printf("[ERROR] Tx App memory pool create failed!\n\r");
     Error_Handler();
     /* USER CODE END TX_Byte_Pool_Error */
   }
@@ -101,6 +102,7 @@ VOID tx_application_define(VOID *first_unused_memory)
     if (status != TX_SUCCESS)
     {
       /* USER CODE BEGIN  App_ThreadX_Init_Error */
+      printf("[ERROR] Tx App thread init failed!\n\r");
       Error_Handler();
       /* USER CODE END  App_ThreadX_Init_Error */
     }
@@ -113,6 +115,7 @@ VOID tx_application_define(VOID *first_unused_memory)
   if (tx_byte_pool_create(&nx_app_byte_pool, "Nx App memory pool", nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN NX_Byte_Pool_Error */
+    printf("[ERROR] Nx App memory pool create failed!\n\r");
     Error_Handler();
     /* USER CODE END NX_Byte_Pool_Error */
   }
@@ -127,6 +130,7 @@ VOID tx_application_define(VOID *first_unused_memory)
     if (status != NX_SUCCESS)
     {
       /* USER CODE BEGIN  MX_NetXDuo_Init_Error */
+      printf("[ERROR] MX-NetXDuo init failed!\n\r");
       Error_Handler();
       /* USER CODE END  MX_NetXDuo_Init_Error */
     }
